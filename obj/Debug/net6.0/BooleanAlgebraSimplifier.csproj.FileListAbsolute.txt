@@ -1,0 +1,15 @@
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/obj/Debug/net6.0/BooleanAlgebraSimplifier.csproj.AssemblyReference.cache
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/obj/Debug/net6.0/BooleanAlgebraSimplifier.GeneratedMSBuildEditorConfig.editorconfig
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/obj/Debug/net6.0/BooleanAlgebraSimplifier.AssemblyInfoInputs.cache
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/obj/Debug/net6.0/BooleanAlgebraSimplifier.AssemblyInfo.cs
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/obj/Debug/net6.0/BooleanAlgebraSimplifier.csproj.CoreCompileInputs.cache
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/bin/Debug/net6.0/BooleanAlgebraSimplifier
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/bin/Debug/net6.0/BooleanAlgebraSimplifier.deps.json
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/bin/Debug/net6.0/BooleanAlgebraSimplifier.runtimeconfig.json
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/bin/Debug/net6.0/BooleanAlgebraSimplifier.dll
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/bin/Debug/net6.0/BooleanAlgebraSimplifier.pdb
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/obj/Debug/net6.0/BooleanAlgebraSimplifier.dll
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/obj/Debug/net6.0/refint/BooleanAlgebraSimplifier.dll
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/obj/Debug/net6.0/BooleanAlgebraSimplifier.pdb
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/obj/Debug/net6.0/BooleanAlgebraSimplifier.genruntimeconfig.cache
+/home/bobby/Documents/dev/BooleanAlgebraSimplifier/obj/Debug/net6.0/ref/BooleanAlgebraSimplifier.dll
