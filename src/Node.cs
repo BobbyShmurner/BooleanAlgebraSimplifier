@@ -59,7 +59,7 @@ public class ValueNode : Node {
 	}
 }
 
-public abstract class Node {
+public abstract class Node : IComparable<Node> {
 	public Node Parent { get; protected set; } = null;
 	public List<Node> Children { get; protected set; }
 
@@ -67,11 +67,26 @@ public abstract class Node {
 	public bool IsVariableLength { get { return FixedChildCount == -1; } }
 	protected abstract string EvaluateString();
 
+	public int CompareTo(Node other) {
+		string thisStr = this.ToString().Replace(" ", "").Replace("!", "");
+		string otherStr = other.ToString().Replace(" ", "").Replace("!", "");
+
+		return thisStr.CompareTo(otherStr);
+	}
+
 	bool isDirty;
 	string cachedString;
 
 	public static implicit operator Node(string value) {
 		return new ValueNode(value);
+	}
+
+	public static implicit operator Node(char value) {
+		return new ValueNode(value.ToString());
+	}
+
+	public static implicit operator Node(int value) {
+		return new ValueNode(value.ToString());
 	}
 
 	public Node(params Node[] children) {
@@ -85,7 +100,7 @@ public abstract class Node {
 			}
 		}
 
-		isDirty = true;
+		SetDirty();
 	}
 
 	public static Node CreateTreeFromString(string nodeString) {
@@ -105,32 +120,17 @@ public abstract class Node {
 		Console.WriteLine("-- Brackets --");
 
 		while (nodeString.Count((c) => c == '(') > 0) {
-			int bracketLayer = 0;
-			int startIndex = 0;
-			int endIndex = 0;
-
 			for (int i = 0; i < nodeString.Length; i++) {
-				char c = nodeString[i];
+				if (nodeString[i] == '(') {
+					int length = GetLengthOSinglefNodeStringValueAtIndex(nodeString, i);
+					
+					vars.Add(Node.CreateTreeFromString(nodeString.Substring(i + 1, length - 2)));
+					nodeString = nodeString.Remove(i, length).Insert(i, $"${vars.Count() - 1}$");
 
-				if (c == '(') {
-					bracketLayer++;
-					startIndex = i;
-					continue;
-				}
-
-				if (c == ')') {
-					bracketLayer--;
-
-					if (bracketLayer == 0) {
-						endIndex = i;
-						break;
-					}
+					Console.WriteLine(nodeString);
+					break;
 				}
 			}
-
-			vars.Add(Node.CreateTreeFromString(nodeString.Substring(startIndex + 1, endIndex - startIndex - 1)));
-			nodeString = nodeString.Remove(startIndex, endIndex - startIndex + 1).Insert(startIndex, $"${vars.Count() - 1}");
-			Console.WriteLine(nodeString);
 		}
 
 		// Not
@@ -146,21 +146,12 @@ public abstract class Node {
 					continue;
 				}
 
-				NotNode notNode = null;
-
-				if (nodeString[i + 1] == '$') {
-					int varIndex = int.Parse(nodeString[i + 2].ToString());
-					notNode = new NotNode(vars[varIndex]);
-
-					nodeString = nodeString.Remove(i, 3).Insert(i, $"${vars.Count()}");
-				} else {
-					notNode = new NotNode(nodeString[i + 1].ToString());
-					nodeString = nodeString.Remove(i, 2).Insert(i, $"${vars.Count()}");
-				}
-
+				int length = GetLengthOSinglefNodeStringValueAtIndex(nodeString, i + 1) + 1;
+				NotNode notNode = new NotNode(EvaluateSingleNodeStringValue(nodeString.Substring(i + 1, length - 1), vars));
 				vars.Add(notNode);
+
+				nodeString = nodeString.Remove(i, length).Insert(i, $"${vars.Count() - 1}$");
 				Console.WriteLine(nodeString);
-				break;
 			}
 		}
 
@@ -170,28 +161,100 @@ public abstract class Node {
 		while (true) {
 			bool foundAnd = false;
 			int startIndex = 0;
-			int endIndex = nodeString.Length;
+			int endIndex = 0;
 
 			for (int i = 0; i < nodeString.Length - 1; i++) {
-				if (nodeString[i] == '+' || nodeString[i + 1] == '+') {
+				if (nodeString[i] == '+' || nodeString[i + 1] == '+'
+					|| (nodeString[i] == '$' && (i >= nodeString.Length - 2 || nodeString[i + 2] == '+'))
+				) {
 					if (!foundAnd) continue;
 					else {
-						endIndex = i;
+						if (nodeString[i] == '$') endIndex = i + 1;
+						else endIndex = 1;
+
 						break;
 					}
 				}
 
+				if (!foundAnd) startIndex = i;
 				foundAnd = true;
-				startIndex = i;
 			}
 
-			
-
 			if (!foundAnd) break;
+
+			string subStr = nodeString.Substring(startIndex, endIndex - startIndex + 1);
+			nodeString = nodeString.Remove(startIndex, endIndex - startIndex + 1).Insert(startIndex, $"${vars.Count()}");
+			List<Node> children = new List<Node>();
+
+			for (int i = 0; i < subStr.Length; i++) { 
+				if (subStr[i] != '$') {
+					children.Add(subStr[i]);
+					continue;
+				}
+
+				int varIndex = int.Parse(subStr[i + 1].ToString());
+				children.Add(vars[varIndex]);
+				i++;
+			}
+
+			Console.WriteLine(nodeString);
+			AndNode andNode = new AndNode(children.ToArray());
+			vars.Add(andNode);
 		}
 
+		Console.WriteLine("-- OR --");
+
 		Console.WriteLine($"Created Node Tree From String \"{nodeStringOG}\"");
-		return null;
+		return vars.Last();
+	}
+
+	static Node EvaluateSingleNodeStringValue(string nodeValue, List<Node> vars) {
+		if (nodeValue[0] == '$') {
+			return vars[int.Parse(nodeValue.Substring(1, nodeValue.Length - 1))];
+		}
+
+		if (nodeValue.Length > 1) {
+			throw new Exception("Failed To Evaluate Single Value \"{nodeValue}\": Value Too Long");
+		}
+
+		if (nodeValue == "+" || nodeValue == "!" || nodeValue == "(" || nodeValue == ")") {
+			throw new Exception("Failed To Evaluate Single Value \"{nodeValue}\": Invalid Value");
+		}
+
+		return nodeValue;
+	}
+
+	static int GetLengthOSinglefNodeStringValueAtIndex(string nodeString, int i) {
+		if (i < 0 || i >= nodeString.Length) return 0;
+		int startingIndex = i;
+
+		if (nodeString[i] == '$') {
+			for (i++; i < nodeString.Length; i++) {
+				if (nodeString[i] == '$') return i - startingIndex + 1;
+			}
+
+			throw new Exception($"Invalid Node String \"{nodeString}\", Couldn't find closing dollar for dollar at index {startingIndex}");
+		}
+		
+		if (nodeString[i] == '(') {
+			int bracketLevel = 1;
+
+			for (i++; i < nodeString.Length; i++) {
+				if (nodeString[i] == '(') {
+					bracketLevel++;
+					continue;
+				}
+
+				if (nodeString[i] == ')') {
+					bracketLevel--;
+					if (bracketLevel == 0) return i - startingIndex + 1;
+				}
+			}
+
+			throw new Exception($"Invalid Node String \"{nodeString}\", Couldn't find closing bracket for bracket at index {startingIndex}");
+		}
+
+		return 1;
 	}
 
 	public int GetCountOfChildType(Type type) {
@@ -233,6 +296,11 @@ public abstract class Node {
 		return orderedNodes;
 	}
 
+	public void SetDirty() {
+		isDirty = true;
+		if (Parent != null) Parent.SetDirty();
+	}
+
 	public override string ToString() {
 		if (isDirty) {
 			cachedString = EvaluateString();
@@ -262,7 +330,7 @@ public abstract class Node {
 			return node == child ? newNode : node;
 		});
 
-		isDirty = true;
+		SetDirty();
 	}
 
 	public void ReplaceSelfWithNode(Node nodeToBecome) {
@@ -271,7 +339,7 @@ public abstract class Node {
 
 		Parent = null;
 		Children.Select(child => (Node)null);
-		isDirty = true;
+		SetDirty();
 	}
 }
 
