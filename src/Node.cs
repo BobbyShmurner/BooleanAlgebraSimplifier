@@ -1,8 +1,10 @@
 public class AndNode : Node {
 	public AndNode(params Node[] children) : base(children) {}
-	public override int FixedChildCount { get { return -1; } }
 
-	protected override string EvaluateString() {
+	public override int FixedChildCount { get { return -1; } }
+	public override string NodeName { get { return "AND"; } }
+
+	protected override string EvaluateNodeString() {
 		Children.Sort();
 
 		string evaluatedString = "";
@@ -17,9 +19,11 @@ public class AndNode : Node {
 
 public class OrNode : Node {
 	public OrNode(params Node[] children) : base(children) {}
-	public override int FixedChildCount { get { return -1; } }
 
-	protected override string EvaluateString() {
+	public override int FixedChildCount { get { return -1; } }
+	public override string NodeName { get { return "OR"; } }
+
+	protected override string EvaluateNodeString() {
 		Children.Sort();
 
 		string evaluatedString = "";
@@ -33,9 +37,11 @@ public class OrNode : Node {
 
 public class NotNode : Node {
 	public NotNode(Node child) : base(child) {}
+
 	public override int FixedChildCount { get { return 1; } }
+	public override string NodeName { get { return "NOT"; } }
 	
-	protected override string EvaluateString() {
+	protected override string EvaluateNodeString() {
 		Node child = Children[0];
 
 		if (child is ValueNode) {
@@ -47,14 +53,20 @@ public class NotNode : Node {
 }
 
 public class ValueNode : Node {
-	public string Value { get; private set; }
-	public override int FixedChildCount { get { return 0; } }
+	public char Value { get; private set; }
 
-	protected override string EvaluateString() {
-		return Value;
+	public override int FixedChildCount { get { return 0; } }
+	public override string NodeName { get { return "VALUE"; } }
+
+	protected override string EvaluateNodeString() {
+		return Value.ToString();
 	}
 
-	public ValueNode(string value) : base() {
+	protected override string EvaluateDebugNodeString() {
+		return $"{Value}";
+	}
+
+	public ValueNode(char value) : base() {
 		Value = value;
 	}
 }
@@ -64,8 +76,21 @@ public abstract class Node : IComparable<Node> {
 	public List<Node> Children { get; protected set; }
 
 	public abstract int FixedChildCount { get; }
+	public abstract string NodeName { get; }
 	public bool IsVariableLength { get { return FixedChildCount == -1; } }
-	protected abstract string EvaluateString();
+
+	protected abstract string EvaluateNodeString();
+
+	protected virtual string EvaluateDebugNodeString() {
+		Children.Sort();
+
+		string evaluatedString = $"{NodeName}[";
+		foreach (Node child in Children) {
+			evaluatedString += $"{child.ToDebugString()}, ";
+		}
+
+		return evaluatedString.Substring(0, evaluatedString.Length - 2) + "]";
+	}
 
 	public int CompareTo(Node other) {
 		string thisStr = this.ToString().Replace(" ", "").Replace("!", "");
@@ -75,18 +100,22 @@ public abstract class Node : IComparable<Node> {
 	}
 
 	bool isDirty;
-	string cachedString;
+	string cachedNodeString;
+	string cachedDebugNodeString;
 
-	public static implicit operator Node(string value) {
+	public static implicit operator Node(char value) {
 		return new ValueNode(value);
 	}
 
-	public static implicit operator Node(char value) {
-		return new ValueNode(value.ToString());
+	public static implicit operator Node(string value) {
+		if (value.Length > 1) throw new Exception("Value Nodes can only store chars, not \"{value}\"");
+
+		return new ValueNode(value.ToCharArray()[0]);
 	}
 
 	public static implicit operator Node(int value) {
-		return new ValueNode(value.ToString());
+		if (value != 0 && value != 1) throw new Exception("Value Nodes can only store 0s and 1s, not \"{value}\"");
+		return new ValueNode(value.ToString().ToCharArray()[0]);
 	}
 
 	public Node(params Node[] children) {
@@ -110,14 +139,11 @@ public abstract class Node : IComparable<Node> {
 		nodeString = nodeString.Replace(".", "");
 		List<Node> vars = new List<Node>();
 
-		Console.WriteLine($"Creating Node Tree From String \"{nodeStringOG}\"");
+		// -- Brackets --
 
-		// Brackets
 		if (nodeString.Count((c) => c == '(') != nodeString.Count((c) => c == ')')) {
 			throw new Exception("Failed to Parse Node String \"{nodeStringOG}\": The amount of opening and closing brackets are not equal");
 		}
-
-		Console.WriteLine("-- Brackets --");
 
 		while (nodeString.Count((c) => c == '(') > 0) {
 			for (int i = 0; i < nodeString.Length; i++) {
@@ -126,15 +152,12 @@ public abstract class Node : IComparable<Node> {
 					
 					vars.Add(Node.CreateTreeFromString(nodeString.Substring(i + 1, length - 2)));
 					nodeString = nodeString.Remove(i, length).Insert(i, $"[{vars.Count() - 1}]");
-
-					Console.WriteLine(nodeString);
 					break;
 				}
 			}
 		}
 
-		// Not
-		Console.WriteLine("-- NOT --");
+		// -- NOT --
 
 		while (nodeString.Count((c) => c == '!') > 0) {
 			for (int i = 0; i < nodeString.Length; i++) {
@@ -151,13 +174,11 @@ public abstract class Node : IComparable<Node> {
 				vars.Add(notNode);
 
 				nodeString = nodeString.Remove(i, length).Insert(i, $"[{vars.Count() - 1}]");
-				Console.WriteLine(nodeString);
 				break;
 			}
 		}
 
-		// And
-		Console.WriteLine("-- AND --");
+		// -- AND --
 
 		while (true) {
 			bool foundAnd = false;
@@ -177,20 +198,17 @@ public abstract class Node : IComparable<Node> {
 				if (nextValueLength <= 0) continue;
 				foundAnd = true;
 
-				Console.WriteLine($"1: \"{currentNodeValue}\" - {currentValueLength}, 2: \"{nextNodeValue}\" - {nextValueLength}");
-
 				AndNode andNode = new AndNode(EvaluateSingleNodeStringValue(currentNodeValue, vars), EvaluateSingleNodeStringValue(nextNodeValue, vars));
 				vars.Add(andNode);
 
 				nodeString = nodeString.Remove(i, currentValueLength + nextValueLength).Insert(i, $"[{vars.Count() - 1}]");
-				Console.WriteLine(nodeString);
 				break;
 			}
 
 			if (!foundAnd) break;
 		}
 
-		Console.WriteLine("-- OR --");
+		// -- OR --
 
 		while (true) {
 			bool foundOr = false;
@@ -215,13 +233,10 @@ public abstract class Node : IComparable<Node> {
 				if (nextValueLength <= 0) continue;
 				foundOr = true;
 
-				Console.WriteLine($"1: \"{currentNodeValue}\" - {currentValueLength}, 2: \"{nextNodeValue}\" - {nextValueLength}");
-
 				OrNode orNode = new OrNode(EvaluateSingleNodeStringValue(currentNodeValue, vars), EvaluateSingleNodeStringValue(nextNodeValue, vars));
 				vars.Add(orNode);
 
 				nodeString = nodeString.Remove(i, currentValueLength + nextValueLength + 1).Insert(i, $"[{vars.Count() - 1}]");
-				Console.WriteLine(nodeString);
 				break;
 			}
 
@@ -232,7 +247,6 @@ public abstract class Node : IComparable<Node> {
 			throw new Exception($"Failed to parse node string \"{nodeStringOG}\"");
 		}
 
-		Console.WriteLine($"Created Node Tree From String \"{nodeStringOG}\"");
 		return EvaluateSingleNodeStringValue(nodeString, vars);
 	}
 
@@ -329,13 +343,22 @@ public abstract class Node : IComparable<Node> {
 		if (Parent != null) Parent.SetDirty();
 	}
 
-	public override string ToString() {
-		if (isDirty) {
-			cachedString = EvaluateString();
+	public void RecalculateNodeStrings(bool force = false) {
+		if (isDirty || force) {
+			cachedNodeString = EvaluateNodeString();
+			cachedDebugNodeString = EvaluateDebugNodeString();
 			isDirty = false;
 		}
+	}
 
-		return cachedString;
+	public override string ToString() {
+		RecalculateNodeStrings();
+		return cachedNodeString;
+	}
+
+	public string ToDebugString() {
+		RecalculateNodeStrings();
+		return cachedDebugNodeString;
 	}
 
 	public override bool Equals(object obj) {

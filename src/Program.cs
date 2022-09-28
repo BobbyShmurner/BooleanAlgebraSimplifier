@@ -4,5 +4,6 @@
 		// Node node = Node.CreateTreeFromString("C!B + A + B + !AB!C");
 
 		Console.WriteLine($"Node: {node}");
+		Console.WriteLine($"\nDebug Node: {node.ToDebugString()}");
 	}
 }
