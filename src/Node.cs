@@ -122,10 +122,10 @@ public abstract class Node : IComparable<Node> {
 		while (nodeString.Count((c) => c == '(') > 0) {
 			for (int i = 0; i < nodeString.Length; i++) {
 				if (nodeString[i] == '(') {
-					int length = GetLengthOSinglefNodeStringValueAtIndex(nodeString, i);
+					int length = GetLengthOfSinglefNodeStringValueAtIndex(nodeString, i);
 					
 					vars.Add(Node.CreateTreeFromString(nodeString.Substring(i + 1, length - 2)));
-					nodeString = nodeString.Remove(i, length).Insert(i, $"${vars.Count() - 1}$");
+					nodeString = nodeString.Remove(i, length).Insert(i, $"[{vars.Count() - 1}]");
 
 					Console.WriteLine(nodeString);
 					break;
@@ -146,12 +146,13 @@ public abstract class Node : IComparable<Node> {
 					continue;
 				}
 
-				int length = GetLengthOSinglefNodeStringValueAtIndex(nodeString, i + 1) + 1;
+				int length = GetLengthOfSinglefNodeStringValueAtIndex(nodeString, i + 1) + 1;
 				NotNode notNode = new NotNode(EvaluateSingleNodeStringValue(nodeString.Substring(i + 1, length - 1), vars));
 				vars.Add(notNode);
 
-				nodeString = nodeString.Remove(i, length).Insert(i, $"${vars.Count() - 1}$");
+				nodeString = nodeString.Remove(i, length).Insert(i, $"[{vars.Count() - 1}]");
 				Console.WriteLine(nodeString);
+				break;
 			}
 		}
 
@@ -160,57 +161,84 @@ public abstract class Node : IComparable<Node> {
 
 		while (true) {
 			bool foundAnd = false;
-			int startIndex = 0;
-			int endIndex = 0;
+			
+			for (int i = 0; i < nodeString.Length - 1; i += GetLengthOfSinglefNodeStringValueAtIndex(nodeString, i)) {
+				if (nodeString[i] == '+') continue;
 
-			for (int i = 0; i < nodeString.Length - 1; i++) {
-				if (nodeString[i] == '+' || nodeString[i + 1] == '+'
-					|| (nodeString[i] == '$' && (i >= nodeString.Length - 2 || nodeString[i + 2] == '+'))
-				) {
-					if (!foundAnd) continue;
-					else {
-						if (nodeString[i] == '$') endIndex = i + 1;
-						else endIndex = 1;
+				int currentNodeValueStartIndex = i;
+				int currentValueLength = GetLengthOfSinglefNodeStringValueAtIndex(nodeString, currentNodeValueStartIndex);
+				string currentNodeValue = nodeString.Substring(currentNodeValueStartIndex, currentValueLength);
 
-						break;
-					}
-				}
+				int nextNodeValueStartIndex = i + currentValueLength;
+				int nextValueLength = GetLengthOfSinglefNodeStringValueAtIndex(nodeString, nextNodeValueStartIndex);
+				string nextNodeValue = nodeString.Substring(nextNodeValueStartIndex, nextValueLength);
 
-				if (!foundAnd) startIndex = i;
+				if (nextNodeValue == "+") continue;
+				if (nextValueLength <= 0) continue;
 				foundAnd = true;
+
+				Console.WriteLine($"1: \"{currentNodeValue}\" - {currentValueLength}, 2: \"{nextNodeValue}\" - {nextValueLength}");
+
+				AndNode andNode = new AndNode(EvaluateSingleNodeStringValue(currentNodeValue, vars), EvaluateSingleNodeStringValue(nextNodeValue, vars));
+				vars.Add(andNode);
+
+				nodeString = nodeString.Remove(i, currentValueLength + nextValueLength).Insert(i, $"[{vars.Count() - 1}]");
+				Console.WriteLine(nodeString);
+				break;
 			}
 
 			if (!foundAnd) break;
-
-			string subStr = nodeString.Substring(startIndex, endIndex - startIndex + 1);
-			nodeString = nodeString.Remove(startIndex, endIndex - startIndex + 1).Insert(startIndex, $"${vars.Count()}");
-			List<Node> children = new List<Node>();
-
-			for (int i = 0; i < subStr.Length; i++) { 
-				if (subStr[i] != '$') {
-					children.Add(subStr[i]);
-					continue;
-				}
-
-				int varIndex = int.Parse(subStr[i + 1].ToString());
-				children.Add(vars[varIndex]);
-				i++;
-			}
-
-			Console.WriteLine(nodeString);
-			AndNode andNode = new AndNode(children.ToArray());
-			vars.Add(andNode);
 		}
 
 		Console.WriteLine("-- OR --");
 
+		while (true) {
+			bool foundOr = false;
+			
+			for (int i = 0; i < nodeString.Length - 1; i += GetLengthOfSinglefNodeStringValueAtIndex(nodeString, i)) {
+				if (nodeString[i] == '+') continue;
+
+				int currentNodeValueStartIndex = i;
+				int currentValueLength = GetLengthOfSinglefNodeStringValueAtIndex(nodeString, currentNodeValueStartIndex);
+				string currentNodeValue = nodeString.Substring(currentNodeValueStartIndex, currentValueLength);
+
+				int plusNodeValueStartIndex = currentNodeValueStartIndex + currentValueLength;
+				int plusValueLength = GetLengthOfSinglefNodeStringValueAtIndex(nodeString, plusNodeValueStartIndex);
+				string plusNodeValue = nodeString.Substring(plusNodeValueStartIndex, plusValueLength);
+
+				if (plusNodeValue != "+") continue;
+
+				int nextNodeValueStartIndex = plusNodeValueStartIndex + 1;
+				int nextValueLength = GetLengthOfSinglefNodeStringValueAtIndex(nodeString, nextNodeValueStartIndex);
+				string nextNodeValue = nodeString.Substring(nextNodeValueStartIndex, nextValueLength);
+
+				if (nextValueLength <= 0) continue;
+				foundOr = true;
+
+				Console.WriteLine($"1: \"{currentNodeValue}\" - {currentValueLength}, 2: \"{nextNodeValue}\" - {nextValueLength}");
+
+				OrNode orNode = new OrNode(EvaluateSingleNodeStringValue(currentNodeValue, vars), EvaluateSingleNodeStringValue(nextNodeValue, vars));
+				vars.Add(orNode);
+
+				nodeString = nodeString.Remove(i, currentValueLength + nextValueLength + 1).Insert(i, $"[{vars.Count() - 1}]");
+				Console.WriteLine(nodeString);
+				break;
+			}
+
+			if (!foundOr) break;
+		}
+
+		if (GetLengthOfSinglefNodeStringValueAtIndex(nodeString, 0) != nodeString.Length) {
+			throw new Exception($"Failed to parse node string \"{nodeStringOG}\"");
+		}
+
 		Console.WriteLine($"Created Node Tree From String \"{nodeStringOG}\"");
-		return vars.Last();
+		return EvaluateSingleNodeStringValue(nodeString, vars);
 	}
 
 	static Node EvaluateSingleNodeStringValue(string nodeValue, List<Node> vars) {
-		if (nodeValue[0] == '$') {
-			return vars[int.Parse(nodeValue.Substring(1, nodeValue.Length - 1))];
+		if (nodeValue[0] == '[') {
+			return vars[int.Parse(nodeValue.Substring(1, nodeValue.Length - 2))];
 		}
 
 		if (nodeValue.Length > 1) {
@@ -224,16 +252,16 @@ public abstract class Node : IComparable<Node> {
 		return nodeValue;
 	}
 
-	static int GetLengthOSinglefNodeStringValueAtIndex(string nodeString, int i) {
+	static int GetLengthOfSinglefNodeStringValueAtIndex(string nodeString, int i) {
 		if (i < 0 || i >= nodeString.Length) return 0;
 		int startingIndex = i;
 
-		if (nodeString[i] == '$') {
+		if (nodeString[i] == '[') {
 			for (i++; i < nodeString.Length; i++) {
-				if (nodeString[i] == '$') return i - startingIndex + 1;
+				if (nodeString[i] == ']') return i - startingIndex + 1;
 			}
 
-			throw new Exception($"Invalid Node String \"{nodeString}\", Couldn't find closing dollar for dollar at index {startingIndex}");
+			throw new Exception($"Invalid Node String \"{nodeString}\", Couldn't find closing square bracket for square bracket at index {startingIndex}");
 		}
 		
 		if (nodeString[i] == '(') {
@@ -342,5 +370,3 @@ public abstract class Node : IComparable<Node> {
 		SetDirty();
 	}
 }
-
-// 	
